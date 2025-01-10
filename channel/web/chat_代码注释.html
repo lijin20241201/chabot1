@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;  /* 占据所有高度 */
+            margin: 0;
+            /* background-color: #f8f9fa; */
+        }
+        #chat-container {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            max-width: 500px;
+            margin: auto;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            overflow: hidden;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            flex: 1;  /* 使聊天容器占据剩余空间 */
+        }
+        #messages {
+            flex-direction: column;
+            display: flex;
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+            overflow-y: auto;
+            border-bottom: 1px solid #ccc;
+            background-color: #ffffff;
+        }
+       
+        .message {
+            margin: 5px 0;                /* 间隔 */
+            padding: 10px 15px;           /* 内边距 */
+            border-radius: 15px;          /* 圆角 */
+            max-width: 80%;               /* 限制最大宽度 */
+            min-width: 80px;              /* 设置最小宽度 */
+            min-height: 40px;             /* 设置最小高度 */
+            word-wrap: break-word;        /* 自动换行 */
+            position: relative;           /* 时间戳定位 */
+            display: inline-block;        /* 内容自适应宽度 */
+            box-sizing: border-box;       /* 包括内边距和边框 */
+            flex-shrink: 0; /* 禁止高度被压缩 */
+            word-wrap: break-word; /* 自动换行，防止单行过长 */
+            white-space: normal; /* 允许正常换行 */
+            overflow: hidden;
+        }
+
+        .bot {
+            background-color: #f1f1f1;    /* 灰色背景 */
+            color: black;                 /* 黑色字体 */
+            align-self: flex-start;       /* 左对齐 */
+            margin-right: auto;           /* 确保消息靠左 */
+            text-align: left;             /* 内容左对齐 */
+        }
+
+        .user {
+            background-color: #2bc840;    /* 蓝色背景 */
+            align-self: flex-end;         /* 右对齐 */
+            margin-left: auto;            /* 确保消息靠右 */
+            text-align: left;             /* 内容左对齐 */
+        }
+        .timestamp {
+            font-size: 0.8em;             /* 时间戳字体大小 */
+            color: rgba(0, 0, 0, 0.5);    /* 半透明黑色 */
+            margin-bottom: 5px;           /* 时间戳下方间距 */
+            display: block;               /* 时间戳独占一行 */
+        }
+        #input-container {
+            display: flex;
+            padding: 10px;
+            background-color: #ffffff;
+            border-top: 1px solid #ccc;
+        }
+        #input {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            margin-right: 10px;
+        }
+        #send {
+            padding: 10px;
+            border: none;
+            background-color: #007bff;
+            color: white;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        #send:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div id="chat-container">
+        <div id="messages"></div>
+        <div id="input-container">
+            <input type="text" id="input" placeholder="输入消息..." />
+            <button id="send">发送</button>
+        </div>
+    </div>
+
+    <script>
+        const messagesDiv = document.getElementById('messages'); // 获取显示消息的容器元素
+        const input = document.getElementById('input'); // 获取用户输入框元素
+        const sendButton = document.getElementById('send'); // 获取发送按钮元素
+        // 生成唯一的用户ID
+        const userId = 'user_' + Math.random().toString(36).substr(2, 9);
+        // 连接到服务器的 SSE（Server-Sent Events）端点，指定用户ID
+        const eventSource = new EventSource(`/sse/${userId}`);
+        // 处理服务器推送的消息
+        eventSource.onmessage = function(event) {
+            const message = JSON.parse(event.data); // 解析服务器发送的 JSON 数据
+            const messageDiv = document.createElement('div');  // 创建一个新的消息元素
+            messageDiv.className = 'message bot'; // 设置消息的 CSS 类，表示来自机器人
+            const timestamp = new Date(message.timestamp).toLocaleTimeString();  // 假设消息中有时间戳
+            // 将时间戳格式化为本地时间字符串
+            messageDiv.innerHTML = `<div class="timestamp">${timestamp}</div>${message.content}`;  
+            // 添加时间戳和消息内容到消息元素中
+            messagesDiv.appendChild(messageDiv); // 将消息添加到消息容器中
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;  // 滚动到消息容器的底部，以显示最新消息
+        };
+        // 绑定发送按钮的点击事件
+        sendButton.onclick = function() {
+            sendMessage(); // 点击按钮时调用发送消息函数
+        };
+        // 监听输入框中的键盘事件
+        input.addEventListener('keypress', function(event) {
+            if (event.key === 'Enter') { // 如果按下的是回车键
+                sendMessage(); // 调用发送消息函数
+                event.preventDefault();  // 阻止默认行为（避免换行）
+            }
+        });
+        // 定义发送消息的函数
+        function sendMessage() {
+            const userMessage = input.value; // 获取用户输入的消息内容
+            // 如果输入框内容不为空
+            if (userMessage) {
+                const timestamp = new Date().toISOString(); // 获取当前时间戳
+                fetch('/message', {
+                    method: 'POST', // 发送 POST 请求到服务器
+                    headers: {
+                        'Content-Type': 'application/json' // 设置请求头为 JSON 格式
+                    },
+                    // 发送用户ID、消息内容和时间戳
+                    body: JSON.stringify({ user_id: userId, message: userMessage, timestamp: timestamp })  // 发送时间戳
+                });
+                const messageDiv = document.createElement('div'); // 创建一个新的消息元素
+                messageDiv.className = 'message user'; // 设置消息的 CSS 类，表示来自用户
+                const userTimestamp = new Date().toLocaleTimeString();  // 获取当前时间
+                // 将当前时间格式化为本地时间字符串
+                messageDiv.innerHTML = `<div class="timestamp">${userTimestamp}</div>${userMessage}`;  // 显示时间
+                // 添加时间戳和消息内容到消息元素中
+                messagesDiv.appendChild(messageDiv);  // 将消息添加到消息容器中
+                messagesDiv.scrollTop = messagesDiv.scrollHeight;  // 滚动到消息容器的底部，以显示最新消息
+                input.value = '';  // 清空输入框内容
+            }
+        }
+    </script>
+</body>
+</html>
